@@ -1,7 +1,11 @@
 import axios from 'axios';
+import { ENV } from '../config/env';
 
-// TODO: Replace with actual API URL
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
+// Use environment variable with proper Expo prefix
+const API_BASE_URL = ENV.API_URL;
+
+console.log('[API Client] Initialized with base URL:', API_BASE_URL);
+console.log('[API Client] Environment:', ENV.IS_DEV ? 'Development' : 'Production');
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,

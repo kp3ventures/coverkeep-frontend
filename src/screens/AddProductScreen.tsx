@@ -59,37 +59,75 @@ export const AddProductScreen = () => {
   };
 
   const handlePhotoCapture = async (imageUri: string) => {
+    console.log('[AI Scan] Photo captured:', imageUri);
     setShowAIScanner(false);
     setIsProcessingAI(true);
     setShowAIResultModal(true);
     setAiError(null);
 
     try {
+      console.log('[AI Scan] Step 1: Converting image to base64...');
+      
       // Convert image to base64
       const base64 = await FileSystem.readAsStringAsync(imageUri, {
         encoding: FileSystem.EncodingType.Base64,
       });
 
-      // Call AI identification API
-      const result = await productApi.identifyProduct(base64);
+      console.log('[AI Scan] Step 2: Base64 conversion successful, size:', base64.length);
+      console.log('[AI Scan] Step 3: Calling API with userId:', user?.id);
+
+      // Call AI identification API (CRITICAL: Pass userId!)
+      const result = await productApi.identifyProduct(base64, user?.id || 'guest');
+      
+      console.log('[AI Scan] Step 4: API response received:', result);
       
       setAiResult(result);
       setIsProcessingAI(false);
-      showToast('Product identified!', 'success');
+      showToast('✨ Product identified!', 'success');
     } catch (error: any) {
-      console.error('AI identification error:', error);
+      console.error('[AI Scan] ERROR:', error);
+      console.error('[AI Scan] Error details:', {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data,
+        stack: error.stack
+      });
+      
       setIsProcessingAI(false);
       
-      // Handle specific error types
+      // Handle specific error types with user-friendly messages
       if (error.response?.status === 400) {
-        setAiError('blur');
+        const errorCode = error.response?.data?.error?.code;
+        const errorMessage = error.response?.data?.error?.message;
+        
+        console.log('[AI Scan] 400 Error - Code:', errorCode, 'Message:', errorMessage);
+        
+        if (errorCode === 'LOW_CONFIDENCE' || errorCode === 'NO_PRODUCT') {
+          setAiError('blur');
+          showToast('Photo quality too low, try again', 'error');
+        } else if (errorCode === 'INVALID_IMAGE' || errorCode === 'IMAGE_TOO_SMALL') {
+          setAiError('blur');
+          showToast('Invalid image, please try again', 'error');
+        } else {
+          setAiError('not-found');
+          showToast('Could not identify product, try manual entry', 'error');
+        }
       } else if (error.response?.status === 404) {
         setAiError('not-found');
+        showToast('Could not identify product, try manual entry', 'error');
+      } else if (error.response?.status === 500) {
+        setAiError('connection');
+        showToast('Server error, please try again', 'error');
+      } else if (error.message?.includes('Network')) {
+        setAiError('connection');
+        showToast('Network error, check your connection', 'error');
+      } else if (error.message?.includes('timeout')) {
+        setAiError('connection');
+        showToast('Request timed out, try again', 'error');
       } else {
         setAiError('connection');
+        showToast(error.message || 'Could not identify product', 'error');
       }
-      
-      showToast('Could not identify product', 'error');
     }
   };
 

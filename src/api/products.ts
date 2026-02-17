@@ -32,12 +32,28 @@ export const productApi = {
   },
 
   // AI product identification from photo
-  identifyProduct: async (imageBase64: string): Promise<AIIdentificationResult> => {
+  identifyProduct: async (imageBase64: string, userId: string): Promise<AIIdentificationResult> => {
+    console.log('[AI Scan] Calling API:', apiClient.defaults.baseURL + '/products/identify');
+    console.log('[AI Scan] Image size:', imageBase64.length, 'characters');
+    console.log('[AI Scan] User ID:', userId);
+    
     const response = await apiClient.post('/products/identify', {
       image: imageBase64,
+      userId: userId, // CRITICAL: Backend requires userId!
     }, {
       timeout: 30000, // 30 second timeout for AI processing
     });
-    return response.data;
+    
+    console.log('[AI Scan] API Response:', response.status, response.data);
+    
+    // Backend returns { success: true, product: {...}, error: null }
+    // Extract the product object
+    if (response.data.success && response.data.product) {
+      return response.data.product as AIIdentificationResult;
+    } else if (response.data.error) {
+      throw new Error(response.data.error.message || 'Failed to identify product');
+    } else {
+      throw new Error('Invalid API response format');
+    }
   },
 };

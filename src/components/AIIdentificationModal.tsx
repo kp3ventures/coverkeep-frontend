@@ -75,18 +75,42 @@ export const AIIdentificationModal: React.FC<AIIdentificationModalProps> = ({
 
   // Error state
   if (error) {
+    const errorConfig = {
+      blur: {
+        icon: '📷',
+        title: 'Photo Quality Too Low',
+        message: 'The image is too blurry or the product is not clearly visible. Please retake the photo with:\n\n• Good lighting\n• Product in focus\n• Brand/model visible',
+        primaryAction: 'Retake Photo',
+        secondaryAction: 'Enter Manually'
+      },
+      'not-found': {
+        icon: '🔍',
+        title: 'Product Not Recognized',
+        message: 'AI could not identify this product. This could happen if:\n\n• Product is too new/rare\n• Brand name not visible\n• Photo angle unclear\n\nYou can try again or enter details manually.',
+        primaryAction: 'Try Again',
+        secondaryAction: 'Enter Manually'
+      },
+      connection: {
+        icon: '📡',
+        title: 'Connection Issue',
+        message: 'Could not connect to the AI service. Please check:\n\n• Internet connection\n• Try again in a moment\n• Backend server is running',
+        primaryAction: 'Retry',
+        secondaryAction: 'Enter Manually'
+      }
+    };
+
+    const config = errorConfig[error as keyof typeof errorConfig] || errorConfig.connection;
+
     return (
       <Modal visible={visible} transparent animationType="fade">
         <View className="flex-1 bg-black/70 items-center justify-center px-6">
           <View className="bg-dark-card rounded-2xl p-6 w-full max-w-md">
-            <Text className="text-red-400 text-3xl text-center mb-4">⚠️</Text>
-            <Text className="text-dark-text text-xl font-bold text-center mb-2">
-              {error === 'blur' ? 'Photo Too Blurry' : 'Could Not Identify'}
+            <Text className="text-4xl text-center mb-4">{config.icon}</Text>
+            <Text className="text-dark-text text-xl font-bold text-center mb-3">
+              {config.title}
             </Text>
-            <Text className="text-dark-muted text-center mb-6">
-              {error === 'blur' 
-                ? 'Please retake the photo with the product in focus'
-                : 'AI could not identify this product. Please enter details manually or try again with a clearer photo.'}
+            <Text className="text-dark-muted text-center text-sm leading-6 mb-6">
+              {config.message}
             </Text>
 
             <View className="space-y-3">
@@ -95,7 +119,7 @@ export const AIIdentificationModal: React.FC<AIIdentificationModalProps> = ({
                 className="bg-primary-500 rounded-xl py-4 active:opacity-70"
               >
                 <Text className="text-white text-center font-bold text-base">
-                  Retake Photo
+                  {config.primaryAction}
                 </Text>
               </TouchableOpacity>
 
@@ -104,7 +128,7 @@ export const AIIdentificationModal: React.FC<AIIdentificationModalProps> = ({
                 className="bg-dark-bg border border-dark-border rounded-xl py-4 active:opacity-70"
               >
                 <Text className="text-dark-text text-center font-semibold text-base">
-                  Enter Manually
+                  {config.secondaryAction}
                 </Text>
               </TouchableOpacity>
             </View>
