@@ -1,223 +1,152 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView } from 'react-native';
-import { doc, getDoc, deleteDoc } from 'firebase/firestore';
-import { db, auth } from '../services/firebaseConfig';
+import React from 'react';
+import { View, Text, ScrollView, TouchableOpacity, Image, Alert } from 'react-native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../types';
+import { useProductStore } from '../stores/productStore';
+import { useUIStore } from '../stores/uiStore';
+import { ExpirationBadge } from '../components/ExpirationBadge';
+import { Header } from '../components/Header';
 
-interface Product {
-  id: string;
-  name: string;
-  brand: string;
-  barcode?: string;
-  purchaseDate?: string;
-  warrantyExpiry?: string;
-  notes?: string;
-  createdAt: string;
-}
+type ProductDetailNavigationProp = NativeStackNavigationProp<RootStackParamList, 'ProductDetail'>;
+type ProductDetailRouteProp = RouteProp<RootStackParamList, 'ProductDetail'>;
 
-export default function ProductDetailScreen({ route, navigation }: any) {
+export const ProductDetailScreen = () => {
+  const navigation = useNavigation<ProductDetailNavigationProp>();
+  const route = useRoute<ProductDetailRouteProp>();
   const { productId } = route.params;
-  const [product, setProduct] = useState<Product | null>(null);
-  const [loading, setLoading] = useState(true);
+  
+  const { getProductById, deleteProduct } = useProductStore();
+  const { showToast } = useUIStore();
+  
+  const product = getProductById(productId);
 
-  useEffect(() => {
-    loadProduct();
-  }, []);
-
-  const loadProduct = async () => {
-    const userId = auth.currentUser?.uid;
-    if (!userId) return;
-
-    try {
-      const docRef = doc(db, 'users', userId, 'products', productId);
-      const docSnap = await getDoc(docRef);
-
-      if (docSnap.exists()) {
-        setProduct({ id: docSnap.id, ...docSnap.data() } as Product);
-      } else {
-        Alert.alert('Error', 'Product not found');
-        navigation.goBack();
-      }
-    } catch (error: any) {
-      Alert.alert('Error', error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  if (!product) {
+    return (
+      <View className="flex-1 bg-dark-bg items-center justify-center">
+        <Text className="text-dark-text text-lg">Product not found</Text>
+      </View>
+    );
+  }
 
   const handleDelete = () => {
     Alert.alert(
       'Delete Product',
-      'Are you sure you want to delete this product?',
+      'Are you sure you want to delete this product? This action cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: async () => {
-            const userId = auth.currentUser?.uid;
-            if (!userId) return;
-
-            try {
-              await deleteDoc(doc(db, 'users', userId, 'products', productId));
-              Alert.alert('Success', 'Product deleted', [
-                { text: 'OK', onPress: () => navigation.goBack() },
-              ]);
-            } catch (error: any) {
-              Alert.alert('Error', error.message);
-            }
+          onPress: () => {
+            deleteProduct(productId);
+            showToast('Product deleted', 'success');
+            navigation.goBack();
           },
         },
       ]
     );
   };
 
-  if (loading) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.loadingText}>Loading...</Text>
-      </View>
-    );
-  }
-
-  if (!product) {
-    return null;
-  }
+  const handleFileClaim = () => {
+    navigation.navigate('WarrantyClaim', { productId });
+  };
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.backText}>← Back</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={handleDelete}>
-          <Text style={styles.deleteText}>Delete</Text>
-        </TouchableOpacity>
-      </View>
+    <View className="flex-1 bg-dark-bg">
+      <Header 
+        title="Product Details" 
+        showBack 
+        rightAction={{ label: 'Edit', onPress: () => showToast('Edit coming soon', 'info') }}
+      />
 
-      <View style={styles.content}>
-        <Text style={styles.productName}>{product.name}</Text>
-        <Text style={styles.productBrand}>{product.brand}</Text>
-
-        {product.barcode && (
-          <View style={styles.infoRow}>
-            <Text style={styles.label}>Barcode:</Text>
-            <Text style={styles.value}>{product.barcode}</Text>
-          </View>
-        )}
-
-        {product.purchaseDate && (
-          <View style={styles.infoRow}>
-            <Text style={styles.label}>Purchase Date:</Text>
-            <Text style={styles.value}>{product.purchaseDate}</Text>
-          </View>
-        )}
-
-        {product.warrantyExpiry && (
-          <View style={styles.infoRow}>
-            <Text style={styles.label}>Warranty Expires:</Text>
-            <Text style={styles.value}>{product.warrantyExpiry}</Text>
-          </View>
-        )}
-
-        {product.notes && (
-          <View style={styles.notesSection}>
-            <Text style={styles.label}>Notes:</Text>
-            <Text style={styles.notesText}>{product.notes}</Text>
-          </View>
-        )}
-
-        <View style={styles.metaSection}>
-          <Text style={styles.metaText}>
-            Added: {new Date(product.createdAt).toLocaleDateString()}
-          </Text>
+      <ScrollView className="flex-1">
+        {/* Product Image */}
+        <View className="w-full h-64 bg-dark-card items-center justify-center border-b border-dark-border">
+          {product.imageUrl ? (
+            <Image 
+              source={{ uri: product.imageUrl }} 
+              className="w-full h-full"
+              resizeMode="cover"
+            />
+          ) : (
+            <Text className="text-8xl">📦</Text>
+          )}
         </View>
-      </View>
-    </ScrollView>
-  );
-}
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    paddingTop: 60,
-    backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
-  },
-  backText: {
-    color: '#007AFF',
-    fontSize: 16,
-  },
-  deleteText: {
-    color: '#FF3B30',
-    fontSize: 16,
-  },
-  loadingText: {
-    textAlign: 'center',
-    marginTop: 100,
-    fontSize: 18,
-    color: '#666',
-  },
-  content: {
-    padding: 20,
-  },
-  productName: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 5,
-  },
-  productBrand: {
-    fontSize: 20,
-    color: '#666',
-    marginBottom: 30,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    marginBottom: 15,
-    backgroundColor: 'white',
-    padding: 15,
-    borderRadius: 8,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    width: 140,
-  },
-  value: {
-    fontSize: 16,
-    color: '#666',
-    flex: 1,
-  },
-  notesSection: {
-    backgroundColor: 'white',
-    padding: 15,
-    borderRadius: 8,
-    marginTop: 10,
-  },
-  notesText: {
-    fontSize: 16,
-    color: '#666',
-    marginTop: 10,
-    lineHeight: 24,
-  },
-  metaSection: {
-    marginTop: 30,
-    paddingTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#ddd',
-  },
-  metaText: {
-    fontSize: 14,
-    color: '#999',
-    textAlign: 'center',
-  },
-});
+        {/* Product Info */}
+        <View className="p-6">
+          {/* Name & Brand */}
+          <View className="mb-6">
+            <Text className="text-dark-text text-3xl font-bold mb-2">{product.name}</Text>
+            <Text className="text-dark-muted text-xl">{product.brand}</Text>
+          </View>
+
+          {/* Warranty Status */}
+          <View className="bg-dark-card rounded-xl p-4 mb-6 border border-dark-border">
+            <View className="flex-row items-center justify-between mb-3">
+              <Text className="text-dark-text text-lg font-semibold">Warranty Status</Text>
+              <ExpirationBadge warrantyEndDate={product.warrantyEndDate} size="medium" />
+            </View>
+            <View className="flex-row justify-between">
+              <InfoItem label="Purchased" value={new Date(product.purchaseDate).toLocaleDateString()} />
+              <InfoItem label="Expires" value={new Date(product.warrantyEndDate).toLocaleDateString()} />
+            </View>
+          </View>
+
+          {/* Details */}
+          <View className="bg-dark-card rounded-xl p-4 mb-6 border border-dark-border">
+            <Text className="text-dark-text text-lg font-semibold mb-3">Details</Text>
+            <DetailRow label="Category" value={product.category} />
+            <DetailRow label="Warranty Length" value={`${product.warrantyLength} months`} />
+            {product.price && <DetailRow label="Price" value={`$${product.price.toFixed(2)}`} />}
+            {product.retailer && <DetailRow label="Retailer" value={product.retailer} />}
+            {product.barcode && <DetailRow label="Barcode" value={product.barcode} />}
+          </View>
+
+          {/* Actions */}
+          <TouchableOpacity
+            onPress={handleFileClaim}
+            className="bg-primary-500 rounded-xl py-4 mb-3 active:opacity-70"
+          >
+            <Text className="text-white text-center text-base font-bold">
+              File Warranty Claim
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => showToast('Upload receipt coming soon', 'info')}
+            className="bg-dark-card border border-dark-border rounded-xl py-4 mb-3 active:opacity-70"
+          >
+            <Text className="text-dark-text text-center text-base font-semibold">
+              Upload Receipt
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={handleDelete}
+            className="bg-red-500/20 border border-red-500/30 rounded-xl py-4 mb-8 active:opacity-70"
+          >
+            <Text className="text-red-400 text-center text-base font-semibold">
+              Delete Product
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </View>
+  );
+};
+
+const InfoItem: React.FC<{ label: string; value: string }> = ({ label, value }) => (
+  <View>
+    <Text className="text-dark-muted text-xs mb-1">{label}</Text>
+    <Text className="text-dark-text text-base font-semibold">{value}</Text>
+  </View>
+);
+
+const DetailRow: React.FC<{ label: string; value: string }> = ({ label, value }) => (
+  <View className="flex-row justify-between py-2 border-b border-dark-border last:border-b-0">
+    <Text className="text-dark-muted">{label}</Text>
+    <Text className="text-dark-text font-semibold">{value}</Text>
+  </View>
+);

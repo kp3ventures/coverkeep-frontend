@@ -1,211 +1,227 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView } from 'react-native';
-import { collection, addDoc } from 'firebase/firestore';
-import { db, auth } from '../services/firebaseConfig';
-import BarcodeScanner from '../components/BarcodeScanner';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Modal } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { useProductStore } from '../stores/productStore';
+import { useUserStore } from '../stores/userStore';
+import { useUIStore } from '../stores/uiStore';
+import { BarcodeScanner } from '../components/BarcodeScanner';
+import { Header } from '../components/Header';
 
-export default function AddProductScreen({ navigation }: any) {
+type InputMethod = 'manual' | 'barcode' | 'photo';
+
+export const AddProductScreen = () => {
+  const navigation = useNavigation();
+  const { user } = useUserStore();
+  const { addProduct } = useProductStore();
+  const { showToast } = useUIStore();
+
+  const [inputMethod, setInputMethod] = useState<InputMethod | null>(null);
   const [showScanner, setShowScanner] = useState(false);
-  const [productName, setProductName] = useState('');
+  
+  // Form state
+  const [name, setName] = useState('');
   const [brand, setBrand] = useState('');
-  const [barcode, setBarcode] = useState('');
+  const [category, setCategory] = useState('');
   const [purchaseDate, setPurchaseDate] = useState('');
-  const [warrantyExpiry, setWarrantyExpiry] = useState('');
-  const [notes, setNotes] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [warrantyMonths, setWarrantyMonths] = useState('12');
+  const [price, setPrice] = useState('');
+  const [retailer, setRetailer] = useState('');
 
-  const handleBarcodeScanned = (scannedBarcode: string) => {
-    setBarcode(scannedBarcode);
+  const handleBarcodeScan = (barcode: string) => {
     setShowScanner(false);
-    // TODO: Fetch product details from backend using barcode
+    showToast(`Barcode scanned: ${barcode}`, 'success');
+    // TODO: Fetch product info from barcode API
+    setInputMethod('manual');
   };
 
-  const handleSaveProduct = async () => {
-    if (!productName || !brand) {
-      Alert.alert('Error', 'Please enter product name and brand');
+  const handlePhotoCapture = async () => {
+    // TODO: Implement camera + AI identification
+    showToast('AI identification coming soon!', 'info');
+    setInputMethod('manual');
+  };
+
+  const handleSubmit = () => {
+    if (!name || !brand || !purchaseDate || !warrantyMonths) {
+      showToast('Please fill in required fields', 'error');
       return;
     }
 
-    setIsLoading(true);
-    const userId = auth.currentUser?.uid;
+    const purchaseDateObj = new Date(purchaseDate);
+    const warrantyEndDate = new Date(purchaseDateObj);
+    warrantyEndDate.setMonth(warrantyEndDate.getMonth() + parseInt(warrantyMonths));
 
-    if (!userId) {
-      Alert.alert('Error', 'User not authenticated');
-      setIsLoading(false);
-      return;
-    }
+    const newProduct = {
+      id: Date.now().toString(),
+      userId: user?.id || '1',
+      name,
+      brand,
+      category: category || 'General',
+      purchaseDate: purchaseDateObj,
+      warrantyEndDate,
+      warrantyLength: parseInt(warrantyMonths),
+      price: price ? parseFloat(price) : undefined,
+      retailer: retailer || undefined,
+      status: 'active' as const,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
 
-    try {
-      await addDoc(collection(db, 'users', userId, 'products'), {
-        name: productName,
-        brand,
-        barcode,
-        purchaseDate,
-        warrantyExpiry,
-        notes,
-        createdAt: new Date().toISOString(),
-      });
-
-      Alert.alert('Success', 'Product added successfully', [
-        { text: 'OK', onPress: () => navigation.goBack() },
-      ]);
-    } catch (error: any) {
-      Alert.alert('Error', error.message);
-    } finally {
-      setIsLoading(false);
-    }
+    addProduct(newProduct);
+    showToast('Product added successfully!', 'success');
+    navigation.goBack();
   };
 
-  if (showScanner) {
+  if (!inputMethod) {
     return (
-      <BarcodeScanner
-        onBarcodeScanned={handleBarcodeScanned}
-        onClose={() => setShowScanner(false)}
-      />
+      <View className="flex-1 bg-dark-bg">
+        <Header title="Add Product" showBack />
+        
+        <View className="flex-1 justify-center px-6">
+          <Text className="text-dark-text text-2xl font-bold text-center mb-8">
+            How would you like to add your product?
+          </Text>
+
+          <MethodButton
+            icon="📸"
+            title="Take a Photo"
+            description="AI will identify the product"
+            onPress={handlePhotoCapture}
+          />
+
+          <MethodButton
+            icon="📱"
+            title="Scan Barcode"
+            description="Quick and accurate"
+            onPress={() => setShowScanner(true)}
+          />
+
+          <MethodButton
+            icon="✏️"
+            title="Enter Manually"
+            description="Add details yourself"
+            onPress={() => setInputMethod('manual')}
+          />
+        </View>
+
+        {/* Barcode Scanner Modal */}
+        <Modal visible={showScanner} animationType="slide">
+          <BarcodeScanner
+            onScan={handleBarcodeScan}
+            onClose={() => setShowScanner(false)}
+          />
+        </Modal>
+      </View>
     );
   }
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.cancelText}>Cancel</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Add Product</Text>
-        <View style={{ width: 60 }} />
-      </View>
+    <View className="flex-1 bg-dark-bg">
+      <Header title="Product Details" showBack />
 
-      <View style={styles.form}>
-        <TouchableOpacity
-          style={styles.scanButton}
-          onPress={() => setShowScanner(true)}
-        >
-          <Text style={styles.scanButtonText}>📷 Scan Barcode</Text>
-        </TouchableOpacity>
-
-        {barcode && (
-          <Text style={styles.barcodeText}>Barcode: {barcode}</Text>
-        )}
-
-        <TextInput
-          style={styles.input}
-          placeholder="Product Name *"
-          value={productName}
-          onChangeText={setProductName}
+      <ScrollView className="flex-1 px-4 py-6">
+        {/* Required Fields */}
+        <Text className="text-dark-text text-lg font-bold mb-4">Required Information</Text>
+        
+        <InputField
+          label="Product Name *"
+          value={name}
+          onChangeText={setName}
+          placeholder="e.g., MacBook Pro 16-inch"
         />
 
-        <TextInput
-          style={styles.input}
-          placeholder="Brand *"
+        <InputField
+          label="Brand *"
           value={brand}
           onChangeText={setBrand}
+          placeholder="e.g., Apple"
         />
 
-        <TextInput
-          style={styles.input}
-          placeholder="Purchase Date (YYYY-MM-DD)"
+        <InputField
+          label="Purchase Date *"
           value={purchaseDate}
           onChangeText={setPurchaseDate}
+          placeholder="YYYY-MM-DD"
         />
 
-        <TextInput
-          style={styles.input}
-          placeholder="Warranty Expiry (YYYY-MM-DD)"
-          value={warrantyExpiry}
-          onChangeText={setWarrantyExpiry}
+        <InputField
+          label="Warranty Length (months) *"
+          value={warrantyMonths}
+          onChangeText={setWarrantyMonths}
+          placeholder="12"
+          keyboardType="numeric"
         />
 
-        <TextInput
-          style={[styles.input, styles.textArea]}
-          placeholder="Notes"
-          value={notes}
-          onChangeText={setNotes}
-          multiline
-          numberOfLines={4}
+        {/* Optional Fields */}
+        <Text className="text-dark-text text-lg font-bold mb-4 mt-6">Optional Information</Text>
+
+        <InputField
+          label="Category"
+          value={category}
+          onChangeText={setCategory}
+          placeholder="e.g., Electronics"
         />
 
+        <InputField
+          label="Price"
+          value={price}
+          onChangeText={setPrice}
+          placeholder="0.00"
+          keyboardType="numeric"
+        />
+
+        <InputField
+          label="Retailer"
+          value={retailer}
+          onChangeText={setRetailer}
+          placeholder="e.g., Best Buy"
+        />
+
+        {/* Submit Button */}
         <TouchableOpacity
-          style={styles.saveButton}
-          onPress={handleSaveProduct}
-          disabled={isLoading}
+          onPress={handleSubmit}
+          className="bg-primary-500 rounded-xl py-4 mt-6 mb-8 active:opacity-70"
         >
-          <Text style={styles.saveButtonText}>
-            {isLoading ? 'Saving...' : 'Save Product'}
+          <Text className="text-white text-center text-base font-bold">
+            Add Product
           </Text>
         </TouchableOpacity>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
-}
+};
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    paddingTop: 60,
-    backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
-  },
-  cancelText: {
-    color: '#007AFF',
-    fontSize: 16,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  form: {
-    padding: 20,
-  },
-  scanButton: {
-    backgroundColor: '#007AFF',
-    padding: 15,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  scanButtonText: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  barcodeText: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 15,
-    textAlign: 'center',
-  },
-  input: {
-    backgroundColor: 'white',
-    padding: 15,
-    borderRadius: 8,
-    marginBottom: 15,
-    fontSize: 16,
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-  textArea: {
-    height: 100,
-    textAlignVertical: 'top',
-  },
-  saveButton: {
-    backgroundColor: '#34C759',
-    padding: 15,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  saveButtonText: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-});
+const MethodButton: React.FC<{
+  icon: string;
+  title: string;
+  description: string;
+  onPress: () => void;
+}> = ({ icon, title, description, onPress }) => (
+  <TouchableOpacity
+    onPress={onPress}
+    className="bg-dark-card border border-dark-border rounded-xl p-6 mb-4 active:opacity-70"
+  >
+    <Text className="text-5xl mb-3">{icon}</Text>
+    <Text className="text-dark-text text-xl font-bold mb-1">{title}</Text>
+    <Text className="text-dark-muted text-sm">{description}</Text>
+  </TouchableOpacity>
+);
+
+const InputField: React.FC<{
+  label: string;
+  value: string;
+  onChangeText: (text: string) => void;
+  placeholder: string;
+  keyboardType?: 'default' | 'numeric';
+}> = ({ label, value, onChangeText, placeholder, keyboardType = 'default' }) => (
+  <View className="mb-4">
+    <Text className="text-dark-text text-sm font-semibold mb-2">{label}</Text>
+    <TextInput
+      value={value}
+      onChangeText={onChangeText}
+      placeholder={placeholder}
+      placeholderTextColor="#94a3b8"
+      keyboardType={keyboardType}
+      className="bg-dark-card text-dark-text rounded-xl px-4 py-3 border border-dark-border"
+    />
+  </View>
+);

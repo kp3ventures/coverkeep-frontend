@@ -1,135 +1,119 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
-import { auth } from '../services/firebaseConfig';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
+import { useUserStore } from '../stores/userStore';
+import { useUIStore } from '../stores/uiStore';
 
-export default function LoginScreen({ navigation }: any) {
+export const LoginScreen = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSignup, setIsSignup] = useState(false);
+  
+  const { setUser, setLoading, setError } = useUserStore();
+  const { showToast } = useUIStore();
 
-  const handleLogin = async () => {
+  const handleAuth = async () => {
     if (!email || !password) {
-      Alert.alert('Error', 'Please enter email and password');
+      showToast('Please fill in all fields', 'error');
       return;
     }
 
-    setIsLoading(true);
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
-      navigation.replace('Dashboard');
-    } catch (error: any) {
-      Alert.alert('Login Failed', error.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    setLoading(true);
+    setError(null);
 
-  const handleSignUp = async () => {
-    if (!email || !password) {
-      Alert.alert('Error', 'Please enter email and password');
-      return;
-    }
-
-    setIsLoading(true);
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
-      navigation.replace('Dashboard');
+      // TODO: Implement Firebase auth
+      // const user = await (isSignup ? signUp(email, password) : signIn(email, password));
+      
+      // Mock user for development
+      setTimeout(() => {
+        setUser({
+          id: '1',
+          email,
+          name: email.split('@')[0],
+          isPremium: false,
+          createdAt: new Date(),
+        });
+        showToast(`Welcome ${isSignup ? 'to' : 'back'}!`, 'success');
+        setLoading(false);
+      }, 1000);
     } catch (error: any) {
-      Alert.alert('Sign Up Failed', error.message);
-    } finally {
-      setIsLoading(false);
+      setError(error.message);
+      showToast(error.message, 'error');
+      setLoading(false);
     }
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>CoverKeep</Text>
-      <Text style={styles.subtitle}>Track Your Warranties</Text>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      className="flex-1 bg-dark-bg"
+    >
+      <View className="flex-1 justify-center px-6">
+        {/* Logo/Header */}
+        <View className="items-center mb-12">
+          <Text className="text-6xl mb-4">🛡️</Text>
+          <Text className="text-dark-text text-4xl font-bold mb-2">CoverKeep</Text>
+          <Text className="text-dark-muted text-base text-center">
+            Never lose track of your warranties
+          </Text>
+        </View>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-        keyboardType="email-address"
-      />
+        {/* Form */}
+        <View className="mb-6">
+          <Text className="text-dark-text text-sm font-semibold mb-2">Email</Text>
+          <TextInput
+            value={email}
+            onChangeText={setEmail}
+            placeholder="your@email.com"
+            placeholderTextColor="#94a3b8"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            className="bg-dark-card text-dark-text rounded-xl px-4 py-4 mb-4 border border-dark-border"
+          />
 
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
+          <Text className="text-dark-text text-sm font-semibold mb-2">Password</Text>
+          <TextInput
+            value={password}
+            onChangeText={setPassword}
+            placeholder="••••••••"
+            placeholderTextColor="#94a3b8"
+            secureTextEntry
+            className="bg-dark-card text-dark-text rounded-xl px-4 py-4 border border-dark-border"
+          />
+        </View>
 
-      <TouchableOpacity
-        style={[styles.button, styles.loginButton]}
-        onPress={handleLogin}
-        disabled={isLoading}
-      >
-        <Text style={styles.buttonText}>Login</Text>
-      </TouchableOpacity>
+        {/* Auth Button */}
+        <TouchableOpacity
+          onPress={handleAuth}
+          className="bg-primary-500 rounded-xl py-4 mb-4 active:opacity-70"
+        >
+          <Text className="text-white text-center text-base font-bold">
+            {isSignup ? 'Sign Up' : 'Log In'}
+          </Text>
+        </TouchableOpacity>
 
-      <TouchableOpacity
-        style={[styles.button, styles.signupButton]}
-        onPress={handleSignUp}
-        disabled={isLoading}
-      >
-        <Text style={styles.buttonText}>Sign Up</Text>
-      </TouchableOpacity>
-    </View>
+        {/* Toggle Sign Up/Login */}
+        <TouchableOpacity
+          onPress={() => setIsSignup(!isSignup)}
+          className="py-3"
+        >
+          <Text className="text-dark-muted text-center">
+            {isSignup ? 'Already have an account? ' : "Don't have an account? "}
+            <Text className="text-primary-400 font-semibold">
+              {isSignup ? 'Log In' : 'Sign Up'}
+            </Text>
+          </Text>
+        </TouchableOpacity>
+
+        {/* Forgot Password */}
+        {!isSignup && (
+          <TouchableOpacity className="py-2">
+            <Text className="text-dark-muted text-center text-sm">
+              Forgot password?
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </KeyboardAvoidingView>
   );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-    backgroundColor: '#f5f5f5',
-  },
-  title: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: '#007AFF',
-    marginBottom: 10,
-  },
-  subtitle: {
-    fontSize: 18,
-    color: '#666',
-    marginBottom: 40,
-  },
-  input: {
-    width: '100%',
-    height: 50,
-    backgroundColor: 'white',
-    borderRadius: 8,
-    paddingHorizontal: 15,
-    marginBottom: 15,
-    fontSize: 16,
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-  button: {
-    width: '100%',
-    height: 50,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  loginButton: {
-    backgroundColor: '#007AFF',
-  },
-  signupButton: {
-    backgroundColor: '#34C759',
-  },
-  buttonText: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-});
+};

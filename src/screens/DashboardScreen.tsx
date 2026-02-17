@@ -1,196 +1,158 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
-import { collection, query, onSnapshot } from 'firebase/firestore';
-import { db, auth } from '../services/firebaseConfig';
+import { View, Text, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../types';
+import { useProductStore } from '../stores/productStore';
+import { useUserStore } from '../stores/userStore';
+import { useUIStore } from '../stores/uiStore';
+import { ProductCard } from '../components/ProductCard';
+import { productApi } from '../api/products';
 
-interface Product {
-  id: string;
-  name: string;
-  brand: string;
-  purchaseDate: string;
-  warrantyExpiry: string;
-}
+type DashboardNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Dashboard'>;
 
-export default function DashboardScreen({ navigation }: any) {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
+export const DashboardScreen = () => {
+  const navigation = useNavigation<DashboardNavigationProp>();
+  const { user } = useUserStore();
+  const { filter, setFilter, setProducts, getFilteredProducts, setLoading, isLoading } = useProductStore();
+  const { showToast } = useUIStore();
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    const userId = auth.currentUser?.uid;
-    if (!userId) {
-      navigation.replace('Login');
-      return;
-    }
+  const filteredProducts = getFilteredProducts();
 
-    // Real-time listener for products
-    const q = query(collection(db, 'users', userId, 'products'));
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const productData: Product[] = [];
-        snapshot.forEach((doc) => {
-          productData.push({ id: doc.id, ...doc.data() } as Product);
-        });
-        setProducts(productData);
-        setLoading(false);
-      },
-      (error) => {
-        console.error('Error fetching products:', error);
-        Alert.alert('Error', 'Failed to load products');
-        setLoading(false);
-      }
-    );
-
-    return () => unsubscribe();
-  }, []);
-
-  const handleLogout = async () => {
+  const loadProducts = async () => {
+    setLoading(true);
     try {
-      await auth.signOut();
-      navigation.replace('Login');
+      // const products = await productApi.getProducts();
+      // setProducts(products);
+      
+      // Mock data for development
+      const mockProducts = [
+        {
+          id: '1',
+          userId: user?.id || '1',
+          name: 'MacBook Pro 16"',
+          brand: 'Apple',
+          category: 'Electronics',
+          purchaseDate: new Date('2024-01-15'),
+          warrantyEndDate: new Date('2025-01-15'),
+          warrantyLength: 12,
+          price: 2499,
+          status: 'active' as const,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        {
+          id: '2',
+          userId: user?.id || '1',
+          name: 'Dyson V15 Vacuum',
+          brand: 'Dyson',
+          category: 'Home Appliances',
+          purchaseDate: new Date('2025-11-01'),
+          warrantyEndDate: new Date('2026-03-01'),
+          warrantyLength: 24,
+          price: 649,
+          status: 'expiring-soon' as const,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ];
+      setProducts(mockProducts);
     } catch (error: any) {
-      Alert.alert('Error', error.message);
+      showToast('Failed to load products', 'error');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
   };
 
-  const renderProduct = ({ item }: { item: Product }) => (
-    <TouchableOpacity
-      style={styles.productCard}
-      onPress={() => navigation.navigate('ProductDetail', { productId: item.id })}
-    >
-      <Text style={styles.productName}>{item.name}</Text>
-      <Text style={styles.productBrand}>{item.brand}</Text>
-      <Text style={styles.productDate}>Expires: {item.warrantyExpiry}</Text>
-    </TouchableOpacity>
-  );
+  useEffect(() => {
+    loadProducts();
+  }, []);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadProducts();
+  };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>My Products</Text>
-        <TouchableOpacity onPress={handleLogout}>
-          <Text style={styles.logoutText}>Logout</Text>
-        </TouchableOpacity>
+    <View className="flex-1 bg-dark-bg">
+      {/* Header */}
+      <View className="pt-12 pb-4 px-4 border-b border-dark-border">
+        <Text className="text-dark-text text-2xl font-bold mb-1">
+          Welcome back, {user?.name || 'User'}!
+        </Text>
+        <Text className="text-dark-muted text-sm">
+          {filteredProducts.length} {filter === 'all' ? 'total' : filter} products
+        </Text>
       </View>
 
-      {loading ? (
-        <Text style={styles.loadingText}>Loading...</Text>
-      ) : products.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyText}>No products yet</Text>
-          <Text style={styles.emptySubtext}>Tap + to add your first product</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={products}
-          renderItem={renderProduct}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContainer}
-        />
-      )}
+      {/* Filter Tabs */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} className="px-4 py-3">
+        <FilterTab label="All" active={filter === 'all'} onPress={() => setFilter('all')} />
+        <FilterTab label="Active" active={filter === 'active'} onPress={() => setFilter('active')} />
+        <FilterTab label="Expiring Soon" active={filter === 'expiring-soon'} onPress={() => setFilter('expiring-soon')} />
+        <FilterTab label="Expired" active={filter === 'expired'} onPress={() => setFilter('expired')} />
+      </ScrollView>
 
-      <TouchableOpacity
-        style={styles.addButton}
-        onPress={() => navigation.navigate('AddProduct')}
+      {/* Products List */}
+      <ScrollView
+        className="flex-1 px-4"
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0ea5e9" />
+        }
       >
-        <Text style={styles.addButtonText}>+</Text>
+        {filteredProducts.length === 0 ? (
+          <View className="flex-1 items-center justify-center py-20">
+            <Text className="text-6xl mb-4">📦</Text>
+            <Text className="text-dark-text text-lg font-semibold mb-2">No products yet</Text>
+            <Text className="text-dark-muted text-center px-6 mb-6">
+              Start tracking your warranties by adding your first product
+            </Text>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('AddProduct')}
+              className="bg-primary-500 px-6 py-3 rounded-xl"
+            >
+              <Text className="text-white font-semibold">Add Product</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View className="py-4">
+            {filteredProducts.map((product) => (
+              <ProductCard
+                key={product.id}
+                product={product}
+                onPress={() => navigation.navigate('ProductDetail', { productId: product.id })}
+              />
+            ))}
+          </View>
+        )}
+      </ScrollView>
+
+      {/* FAB */}
+      <TouchableOpacity
+        onPress={() => navigation.navigate('AddProduct')}
+        className="absolute bottom-6 right-6 bg-primary-500 w-16 h-16 rounded-full items-center justify-center shadow-lg"
+      >
+        <Text className="text-white text-3xl">+</Text>
       </TouchableOpacity>
     </View>
   );
-}
+};
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    paddingTop: 60,
-    backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#007AFF',
-  },
-  logoutText: {
-    color: '#FF3B30',
-    fontSize: 16,
-  },
-  loadingText: {
-    textAlign: 'center',
-    marginTop: 50,
-    fontSize: 18,
-    color: '#666',
-  },
-  emptyState: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emptyText: {
-    fontSize: 20,
-    color: '#666',
-    marginBottom: 10,
-  },
-  emptySubtext: {
-    fontSize: 16,
-    color: '#999',
-  },
-  listContainer: {
-    padding: 15,
-  },
-  productCard: {
-    backgroundColor: 'white',
-    padding: 20,
-    borderRadius: 12,
-    marginBottom: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  productName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 5,
-  },
-  productBrand: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 5,
-  },
-  productDate: {
-    fontSize: 14,
-    color: '#999',
-  },
-  addButton: {
-    position: 'absolute',
-    right: 20,
-    bottom: 30,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#007AFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  addButtonText: {
-    fontSize: 36,
-    color: 'white',
-    fontWeight: 'bold',
-  },
-});
+const FilterTab: React.FC<{ label: string; active: boolean; onPress: () => void }> = ({
+  label,
+  active,
+  onPress,
+}) => (
+  <TouchableOpacity
+    onPress={onPress}
+    className={`${
+      active ? 'bg-primary-500' : 'bg-dark-card border border-dark-border'
+    } px-4 py-2 rounded-full mr-2`}
+  >
+    <Text className={`${active ? 'text-white' : 'text-dark-muted'} font-semibold`}>
+      {label}
+    </Text>
+  </TouchableOpacity>
+);
