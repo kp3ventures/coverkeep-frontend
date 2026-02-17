@@ -5,7 +5,12 @@ import { useProductStore } from '../stores/productStore';
 import { useUserStore } from '../stores/userStore';
 import { useUIStore } from '../stores/uiStore';
 import { BarcodeScanner } from '../components/BarcodeScanner';
+import { AIProductScanner } from '../components/AIProductScanner';
+import { AIIdentificationModal } from '../components/AIIdentificationModal';
 import { Header } from '../components/Header';
+import { productApi } from '../api/products';
+import { AIIdentificationResult } from '../types';
+import * as FileSystem from 'expo-file-system';
 
 type InputMethod = 'manual' | 'barcode' | 'photo';
 
@@ -17,8 +22,15 @@ export const AddProductScreen = () => {
 
   const [inputMethod, setInputMethod] = useState<InputMethod | null>(null);
   const [showScanner, setShowScanner] = useState(false);
+  const [showAIScanner, setShowAIScanner] = useState(false);
   const [scannedBarcode, setScannedBarcode] = useState<string>('');
   const [isLookingUpProduct, setIsLookingUpProduct] = useState(false);
+  
+  // AI identification state
+  const [aiResult, setAiResult] = useState<AIIdentificationResult | null>(null);
+  const [showAIResultModal, setShowAIResultModal] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [isProcessingAI, setIsProcessingAI] = useState(false);
   
   // Form state
   const [name, setName] = useState('');
@@ -46,10 +58,78 @@ export const AddProductScreen = () => {
     }, 2000);
   };
 
-  const handlePhotoCapture = async () => {
-    // TODO: Implement camera + AI identification
-    showToast('AI identification coming soon!', 'info');
+  const handlePhotoCapture = async (imageUri: string) => {
+    setShowAIScanner(false);
+    setIsProcessingAI(true);
+    setShowAIResultModal(true);
+    setAiError(null);
+
+    try {
+      // Convert image to base64
+      const base64 = await FileSystem.readAsStringAsync(imageUri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      // Call AI identification API
+      const result = await productApi.identifyProduct(base64);
+      
+      setAiResult(result);
+      setIsProcessingAI(false);
+      showToast('Product identified!', 'success');
+    } catch (error: any) {
+      console.error('AI identification error:', error);
+      setIsProcessingAI(false);
+      
+      // Handle specific error types
+      if (error.response?.status === 400) {
+        setAiError('blur');
+      } else if (error.response?.status === 404) {
+        setAiError('not-found');
+      } else {
+        setAiError('connection');
+      }
+      
+      showToast('Could not identify product', 'error');
+    }
+  };
+
+  const handleAIConfirm = (result: AIIdentificationResult) => {
+    // Auto-fill form with AI results
+    setName(result.name);
+    setBrand(result.brand);
+    setCategory(result.category);
+    if (result.suggestedWarranty) {
+      setWarrantyMonths(result.suggestedWarranty.toString());
+    }
+    
+    // Close modal and show form
+    setShowAIResultModal(false);
     setInputMethod('manual');
+    
+    showToast('✓ Form auto-filled with AI data', 'success');
+  };
+
+  const handleAIEdit = (result: AIIdentificationResult) => {
+    // Same as confirm but with edited data
+    handleAIConfirm(result);
+  };
+
+  const handleAIRetake = () => {
+    setShowAIResultModal(false);
+    setAiResult(null);
+    setAiError(null);
+    setShowAIScanner(true);
+  };
+
+  const handleAIModalClose = () => {
+    setShowAIResultModal(false);
+    setAiResult(null);
+    setAiError(null);
+    setInputMethod('manual');
+  };
+
+  const handleStartAICapture = () => {
+    setShowAIScanner(true);
   };
 
   const handleSubmit = () => {
@@ -95,9 +175,10 @@ export const AddProductScreen = () => {
 
           <MethodButton
             icon="📸"
-            title="Take a Photo"
+            title="Identify with AI"
             description="AI will identify the product"
-            onPress={handlePhotoCapture}
+            badge="✨ NEW"
+            onPress={handleStartAICapture}
           />
 
           <MethodButton
@@ -122,6 +203,26 @@ export const AddProductScreen = () => {
             onClose={() => setShowScanner(false)}
           />
         </Modal>
+
+        {/* AI Product Scanner Modal */}
+        <Modal visible={showAIScanner} animationType="slide">
+          <AIProductScanner
+            onCapture={handlePhotoCapture}
+            onClose={() => setShowAIScanner(false)}
+          />
+        </Modal>
+
+        {/* AI Identification Result Modal */}
+        <AIIdentificationModal
+          visible={showAIResultModal}
+          result={aiResult}
+          isLoading={isProcessingAI}
+          error={aiError}
+          onConfirm={handleAIConfirm}
+          onRetake={handleAIRetake}
+          onEdit={handleAIEdit}
+          onClose={handleAIModalClose}
+        />
       </View>
     );
   }
@@ -148,6 +249,17 @@ export const AddProductScreen = () => {
       )}
 
       <ScrollView className="flex-1 px-4 py-6">
+        {/* AI Success Banner */}
+        {aiResult && (
+          <View className="bg-primary-500/10 border border-primary-500/30 rounded-xl p-4 mb-4">
+            <Text className="text-primary-400 font-semibold mb-1">✨ Identified with AI</Text>
+            <Text className="text-dark-muted text-sm">
+              {aiResult.confidence && `${aiResult.confidence}% confidence - `}
+              Review and edit details below
+            </Text>
+          </View>
+        )}
+
         {/* Scanned Barcode Info */}
         {scannedBarcode && (
           <View className="bg-green-500/10 border border-green-500/30 rounded-xl p-4 mb-4">
@@ -231,12 +343,18 @@ const MethodButton: React.FC<{
   icon: string;
   title: string;
   description: string;
+  badge?: string;
   onPress: () => void;
-}> = ({ icon, title, description, onPress }) => (
+}> = ({ icon, title, description, badge, onPress }) => (
   <TouchableOpacity
     onPress={onPress}
-    className="bg-dark-card border border-dark-border rounded-xl p-6 mb-4 active:opacity-70"
+    className="bg-dark-card border border-dark-border rounded-xl p-6 mb-4 active:opacity-70 relative"
   >
+    {badge && (
+      <View className="absolute top-3 right-3 bg-primary-500 px-3 py-1 rounded-full">
+        <Text className="text-white text-xs font-bold">{badge}</Text>
+      </View>
+    )}
     <Text className="text-5xl mb-3">{icon}</Text>
     <Text className="text-dark-text text-xl font-bold mb-1">{title}</Text>
     <Text className="text-dark-muted text-sm">{description}</Text>

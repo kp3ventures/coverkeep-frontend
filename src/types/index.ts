@@ -48,6 +48,17 @@ export interface AIMessage {
   timestamp: Date;
 }
 
+export interface AIIdentificationResult {
+  name: string;
+  brand: string;
+  category: string;
+  model?: string;
+  color?: string;
+  confidence?: number;
+  suggestedWarranty?: number; // in months
+  description?: string;
+}
+
 export type RootStackParamList = {
   Login: undefined;
   Dashboard: undefined;

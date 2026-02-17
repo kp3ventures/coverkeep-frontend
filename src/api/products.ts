@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import { Product } from '../types';
+import { Product, AIIdentificationResult } from '../types';
 
 export const productApi = {
   // Get all products for user
@@ -32,8 +32,12 @@ export const productApi = {
   },
 
   // AI product identification from photo
-  identifyProduct: async (imageData: string): Promise<{ name: string; brand: string; category: string }> => {
-    const response = await apiClient.post('/ai/identify', { image: imageData });
+  identifyProduct: async (imageBase64: string): Promise<AIIdentificationResult> => {
+    const response = await apiClient.post('/products/identify', {
+      image: imageBase64,
+    }, {
+      timeout: 30000, // 30 second timeout for AI processing
+    });
     return response.data;
   },
 };
