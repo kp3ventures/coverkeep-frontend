@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { View } from 'react-native';
 import { useRoute, RouteProp } from '@react-navigation/native';
 import { RootStackParamList, AIMessage } from '../types';
@@ -28,10 +28,13 @@ export const WarrantyClaimScreen = () => {
   } = useClaimStore();
   
   const product = getProductById(productId);
+  const initializedRef = useRef(false);
 
   useEffect(() => {
-    // Initialize claim
-    if (!currentClaim) {
+    // Initialize claim only once using ref to prevent duplicate messages
+    if (!initializedRef.current && !currentClaim && aiMessages.length === 0) {
+      initializedRef.current = true;
+      
       setCurrentClaim({
         id: Date.now().toString(),
         productId,
@@ -43,9 +46,9 @@ export const WarrantyClaimScreen = () => {
         updatedAt: new Date(),
       });
       
-      // Add initial AI message
+      // Add initial AI message only if no messages exist
       addAIMessage({
-        id: '1',
+        id: `ai-init-${Date.now()}`,
         role: 'assistant',
         content: `Hi! I'm here to help you file a warranty claim for your ${product?.name}. Please describe the issue you're experiencing with the product.`,
         timestamp: new Date(),
@@ -53,11 +56,12 @@ export const WarrantyClaimScreen = () => {
     }
 
     return () => {
-      // Clean up on unmount
+      // Clean up on unmount - only clear if actually leaving the screen
+      initializedRef.current = false;
       clearAIMessages();
       setCurrentClaim(null);
     };
-  }, []);
+  }, [productId, user?.id, product?.name]);
 
   const handleSendMessage = async (message: string) => {
     // Add user message

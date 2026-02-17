@@ -17,6 +17,8 @@ export const AddProductScreen = () => {
 
   const [inputMethod, setInputMethod] = useState<InputMethod | null>(null);
   const [showScanner, setShowScanner] = useState(false);
+  const [scannedBarcode, setScannedBarcode] = useState<string>('');
+  const [isLookingUpProduct, setIsLookingUpProduct] = useState(false);
   
   // Form state
   const [name, setName] = useState('');
@@ -27,11 +29,21 @@ export const AddProductScreen = () => {
   const [price, setPrice] = useState('');
   const [retailer, setRetailer] = useState('');
 
-  const handleBarcodeScan = (barcode: string) => {
+  const handleBarcodeScan = async (barcode: string) => {
     setShowScanner(false);
+    setScannedBarcode(barcode);
+    setIsLookingUpProduct(true);
+    
     showToast(`Barcode scanned: ${barcode}`, 'success');
-    // TODO: Fetch product info from barcode API
-    setInputMethod('manual');
+    
+    // Simulate API lookup (in real app, this would call backend)
+    setTimeout(() => {
+      setIsLookingUpProduct(false);
+      // TODO: When backend API is ready, populate form fields here
+      // For now, just show manual entry with barcode stored
+      showToast('Enter product details manually', 'info');
+      setInputMethod('manual');
+    }, 2000);
   };
 
   const handlePhotoCapture = async () => {
@@ -118,7 +130,32 @@ export const AddProductScreen = () => {
     <View className="flex-1 bg-dark-bg">
       <Header title="Product Details" showBack />
 
+      {/* Loading overlay for product lookup */}
+      {isLookingUpProduct && (
+        <View className="absolute inset-0 bg-black/50 z-50 items-center justify-center">
+          <View className="bg-dark-card rounded-2xl p-6 m-4">
+            <Text className="text-dark-text text-lg font-semibold mb-2 text-center">
+              Looking up product...
+            </Text>
+            <Text className="text-dark-muted text-center">
+              Barcode: {scannedBarcode}
+            </Text>
+            <View className="mt-4 items-center">
+              <Text className="text-4xl animate-pulse">🔍</Text>
+            </View>
+          </View>
+        </View>
+      )}
+
       <ScrollView className="flex-1 px-4 py-6">
+        {/* Scanned Barcode Info */}
+        {scannedBarcode && (
+          <View className="bg-green-500/10 border border-green-500/30 rounded-xl p-4 mb-4">
+            <Text className="text-green-400 font-semibold mb-1">✓ Barcode Scanned</Text>
+            <Text className="text-dark-muted text-sm font-mono">{scannedBarcode}</Text>
+          </View>
+        )}
+
         {/* Required Fields */}
         <Text className="text-dark-text text-lg font-bold mb-4">Required Information</Text>
         

@@ -10,6 +10,8 @@ interface BarcodeScannerProps {
 export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScan, onClose }) => {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [scanned, setScanned] = useState(false);
+  const [scannedBarcode, setScannedBarcode] = useState<string>('');
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -19,9 +21,17 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScan, onClose 
   }, []);
 
   const handleBarCodeScanned = ({ type, data }: { type: string; data: string }) => {
-    if (!scanned) {
+    if (!scanned && !isProcessing) {
       setScanned(true);
-      onScan(data);
+      setScannedBarcode(data);
+      setIsProcessing(true);
+      
+      // Show feedback for 1.5 seconds, then send barcode and close
+      setTimeout(() => {
+        onScan(data);
+        // Auto-close after showing success
+        setTimeout(onClose, 800);
+      }, 1500);
     }
   };
 
@@ -62,10 +72,29 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScan, onClose 
       
       {/* Overlay */}
       <View className="flex-1 justify-center items-center">
-        <View className="border-2 border-primary-400 w-64 h-64 rounded-2xl" />
-        <Text className="text-white text-center mt-6 px-6">
-          Position the barcode within the frame
-        </Text>
+        <View 
+          className={`border-2 ${
+            scanned ? 'border-green-400' : 'border-primary-400'
+          } w-64 h-64 rounded-2xl`} 
+        />
+        
+        {!scanned ? (
+          <Text className="text-white text-center mt-6 px-6">
+            Position the barcode within the frame
+          </Text>
+        ) : (
+          <View className="mt-6 bg-black/70 px-6 py-4 rounded-xl mx-6">
+            <Text className="text-green-400 text-center text-lg font-semibold mb-2">
+              ✓ Scanned Successfully!
+            </Text>
+            <Text className="text-white text-center font-mono">
+              {scannedBarcode}
+            </Text>
+            <Text className="text-gray-400 text-center mt-2 text-sm">
+              Looking up product...
+            </Text>
+          </View>
+        )}
       </View>
       
       {/* Close Button */}
@@ -73,21 +102,11 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScan, onClose 
         <TouchableOpacity
           onPress={onClose}
           className="bg-black/50 rounded-full p-3"
+          disabled={isProcessing}
         >
           <Text className="text-white text-xl font-bold">✕</Text>
         </TouchableOpacity>
       </View>
-      
-      {scanned && (
-        <View className="absolute bottom-8 left-0 right-0 items-center">
-          <TouchableOpacity
-            onPress={() => setScanned(false)}
-            className="bg-primary-500 px-6 py-3 rounded-xl"
-          >
-            <Text className="text-white font-semibold">Scan Again</Text>
-          </TouchableOpacity>
-        </View>
-      )}
     </View>
   );
 };
