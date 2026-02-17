@@ -70,7 +70,7 @@ export const AddProductScreen = () => {
       
       // Convert image to base64
       const base64 = await FileSystem.readAsStringAsync(imageUri, {
-        encoding: FileSystem.EncodingType.Base64,
+        encoding: 'base64',
       });
 
       console.log('[AI Scan] Step 2: Base64 conversion successful, size:', base64.length);
