@@ -10,7 +10,7 @@ import { AIIdentificationModal } from '../components/AIIdentificationModal';
 import { Header } from '../components/Header';
 import { productApi } from '../api/products';
 import { AIIdentificationResult } from '../types';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 
 type InputMethod = 'manual' | 'barcode' | 'photo';
 
